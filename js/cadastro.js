@@ -18,6 +18,13 @@
 import { getSupabaseClient, isSupabaseConfigured } from "./supabase-client.js";
 import { isMinor } from "./utils.js";
 import { getSessionPhone } from "./auth.js";
+import {
+  readList,
+  genId,
+  MOCK_EVENT_PARTICIPANTS_KEY,
+  MOCK_ATTENDANCE_KEY,
+  MOCK_DELETION_REQUESTS_KEY,
+} from "./mock-store.js";
 
 // profiles mock ficam num objeto { [phone]: profile }, não numa lista —
 // por isso não usa js/mock-store.js (feito pra listas simples, usado por
@@ -299,6 +306,125 @@ export function setMockProfileRole(phone, role) {
  */
 export function __devSetMockRole(phone, role) {
   setMockProfileRole(phone, role);
+}
+
+// ----------------------------------------------------------------------------
+// Direitos do titular (LGPD, seção 9 do CLAUDE.md)
+// ----------------------------------------------------------------------------
+
+/**
+ * Reúne todos os dados pessoais da pessoa autenticada (perfil,
+ * consentimentos, confirmações de presença e presenças registradas),
+ * pra ela baixar. Só o que já é acessível via RLS pra ela mesma.
+ * @returns {Promise<object|null>}
+ */
+export async function exportMyData() {
+  const profile = await getProfile();
+  if (!profile) return null;
+
+  if (isSupabaseConfigured) {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) return null;
+    const uid = userData.user.id;
+
+    const [consents, participations, attendance] = await Promise.all([
+      supabase.from("user_consents").select("*").eq("profile_id", uid),
+      supabase.from("event_participants").select("*").eq("profile_id", uid),
+      supabase.from("attendance").select("*").eq("profile_id", uid),
+    ]);
+
+    return {
+      exported_at: new Date().toISOString(),
+      profile,
+      consents: consents.data || [],
+      event_confirmations: participations.data || [],
+      attendance: attendance.data || [],
+    };
+  }
+
+  const phone = await getAuthenticatedPhone();
+  const mockProfile = readMockProfiles()[phone] || {};
+
+  return {
+    exported_at: new Date().toISOString(),
+    profile,
+    consents: mockProfile.consents || {},
+    event_confirmations: readList(MOCK_EVENT_PARTICIPANTS_KEY).filter((p) => p.profile_id === phone),
+    attendance: readList(MOCK_ATTENDANCE_KEY).filter((a) => a.profile_id === phone),
+  };
+}
+
+/**
+ * Solicita a exclusão da própria conta. Não apaga nada de fato — só
+ * registra o pedido pra liderança processar (ver
+ * supabase/migrations/0005_solicitacao_exclusao.sql pro porquê).
+ * @param {string} [reason]
+ * @returns {Promise<{ success: boolean, error?: string }>}
+ */
+export async function requestAccountDeletion(reason) {
+  const phone = await getAuthenticatedPhone();
+  if (!phone) return { success: false, error: "Sessão expirada. Faça login novamente." };
+
+  if (isSupabaseConfigured) {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return { success: false, error: "Sem conexão com o servidor." };
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) return { success: false, error: "Sessão expirada." };
+
+    const { error } = await supabase
+      .from("deletion_requests")
+      .insert({ profile_id: userData.user.id, reason: reason?.trim() || null });
+
+    if (error) {
+      if (error.message.includes("deletion_requests_one_pending_per_profile")) {
+        return { success: false, error: "Você já tem uma solicitação de exclusão pendente." };
+      }
+      return { success: false, error: "Não foi possível registrar a solicitação." };
+    }
+    return { success: true };
+  }
+
+  const requests = JSON.parse(localStorage.getItem(MOCK_DELETION_REQUESTS_KEY) || "[]");
+  if (requests.some((r) => r.profile_id === phone && r.status === "pendente")) {
+    return { success: false, error: "Você já tem uma solicitação de exclusão pendente." };
+  }
+  requests.push({
+    id: genId(),
+    profile_id: phone,
+    status: "pendente",
+    reason: reason?.trim() || null,
+    requested_at: new Date().toISOString(),
+  });
+  localStorage.setItem(MOCK_DELETION_REQUESTS_KEY, JSON.stringify(requests));
+  return { success: true };
+}
+
+/**
+ * @returns {Promise<boolean>} se a pessoa autenticada já tem uma
+ * solicitação de exclusão pendente.
+ */
+export async function hasPendingDeletionRequest() {
+  const phone = await getAuthenticatedPhone();
+  if (!phone) return false;
+
+  if (isSupabaseConfigured) {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return false;
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) return false;
+    const { data } = await supabase
+      .from("deletion_requests")
+      .select("id")
+      .eq("profile_id", userData.user.id)
+      .eq("status", "pendente")
+      .maybeSingle();
+    return Boolean(data);
+  }
+
+  const requests = JSON.parse(localStorage.getItem(MOCK_DELETION_REQUESTS_KEY) || "[]");
+  return requests.some((r) => r.profile_id === phone && r.status === "pendente");
 }
 
 function traduzErroSupabase(message) {

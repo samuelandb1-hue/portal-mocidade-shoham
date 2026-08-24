@@ -8,11 +8,15 @@
 
 import { getSupabaseClient, isSupabaseConfigured } from "./supabase-client.js";
 import { getAuthenticatedPhone, getProfile, getMockProfileByPhone } from "./cadastro.js";
-import { readList, writeList, genId } from "./mock-store.js";
+import {
+  readList,
+  writeList,
+  genId,
+  MOCK_EVENT_PARTICIPANTS_KEY as MOCK_PARTICIPANTS_KEY,
+  MOCK_ATTENDANCE_KEY,
+} from "./mock-store.js";
 
 const MOCK_EVENTS_KEY = "shoham_mock_events";
-const MOCK_PARTICIPANTS_KEY = "shoham_mock_event_participants";
-const MOCK_ATTENDANCE_KEY = "shoham_mock_attendance";
 
 export const EVENT_CATEGORIES = [
   "Culto",

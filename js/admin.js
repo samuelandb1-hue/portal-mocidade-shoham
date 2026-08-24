@@ -9,7 +9,8 @@
 // ============================================================================
 
 import { getSupabaseClient, isSupabaseConfigured } from "./supabase-client.js";
-import { getProfile, getAllMockProfiles, setMockProfileRole } from "./cadastro.js";
+import { getProfile, getAllMockProfiles, setMockProfileRole, getMockProfileByPhone } from "./cadastro.js";
+import { MOCK_DELETION_REQUESTS_KEY } from "./mock-store.js";
 
 export const ROLES = ["jovem", "lider", "administrador"];
 
@@ -17,6 +18,17 @@ export const ROLES = ["jovem", "lider", "administrador"];
 export async function isAdmin() {
   const profile = await getProfile();
   return profile?.role === "administrador";
+}
+
+/**
+ * Líder ou administrador — usado nas solicitações de exclusão, que
+ * qualquer um da liderança pode ver/processar (RLS da migração 0005),
+ * diferente de gestão de papéis (só admin).
+ * @returns {Promise<boolean>}
+ */
+export async function isLeadership() {
+  const profile = await getProfile();
+  return profile?.role === "lider" || profile?.role === "administrador";
 }
 
 /**
@@ -67,5 +79,83 @@ export async function setUserRole(profileId, role) {
   }
 
   setMockProfileRole(profileId, role);
+  return { success: true };
+}
+
+// ----------------------------------------------------------------------------
+// Solicitações de exclusão de conta (LGPD) — qualquer um da liderança
+// (líder ou administrador) pode ver e processar, igual à RLS da
+// migração 0005_solicitacao_exclusao.sql.
+// ----------------------------------------------------------------------------
+
+/**
+ * Solicitações pendentes, com o nome de quem pediu.
+ * @returns {Promise<Array<{ id: string, profileId: string, fullName: string, reason: string|null, requestedAt: string }>>}
+ */
+export async function listPendingDeletionRequests() {
+  if (!(await isLeadership())) return [];
+
+  if (isSupabaseConfigured) {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return [];
+    const { data, error } = await supabase
+      .from("deletion_requests")
+      .select("id, profile_id, reason, requested_at, profiles(full_name)")
+      .eq("status", "pendente")
+      .order("requested_at");
+    if (error) return [];
+    return (data || []).map((r) => ({
+      id: r.id,
+      profileId: r.profile_id,
+      fullName: r.profiles?.full_name || "(sem nome)",
+      reason: r.reason,
+      requestedAt: r.requested_at,
+    }));
+  }
+
+  const requests = JSON.parse(localStorage.getItem(MOCK_DELETION_REQUESTS_KEY) || "[]");
+  return requests
+    .filter((r) => r.status === "pendente")
+    .map((r) => ({
+      id: r.id,
+      profileId: r.profile_id,
+      fullName: getMockProfileByPhone(r.profile_id)?.full_name || "(sem nome)",
+      reason: r.reason,
+      requestedAt: r.requested_at,
+    }));
+}
+
+/**
+ * Marca uma solicitação como concluída. NÃO apaga a conta de verdade —
+ * isso continua sendo feito manualmente no painel do Supabase (ver
+ * supabase/README.md). Esta função só fecha o pedido no app.
+ * @param {string} requestId
+ * @returns {Promise<{ success: boolean, error?: string }>}
+ */
+export async function markDeletionRequestProcessed(requestId) {
+  if (!(await isLeadership())) {
+    return { success: false, error: "Só líderes ou administradores podem processar solicitações." };
+  }
+
+  if (isSupabaseConfigured) {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return { success: false, error: "Sem conexão com o servidor." };
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) return { success: false, error: "Sessão expirada." };
+
+    const { error } = await supabase
+      .from("deletion_requests")
+      .update({ status: "concluida", processed_by: userData.user.id, processed_at: new Date().toISOString() })
+      .eq("id", requestId);
+
+    if (error) return { success: false, error: "Não foi possível marcar como processada." };
+    return { success: true };
+  }
+
+  const requests = JSON.parse(localStorage.getItem(MOCK_DELETION_REQUESTS_KEY) || "[]");
+  const request = requests.find((r) => r.id === requestId);
+  if (!request) return { success: false, error: "Solicitação não encontrada." };
+  request.status = "concluida";
+  localStorage.setItem(MOCK_DELETION_REQUESTS_KEY, JSON.stringify(requests));
   return { success: true };
 }
