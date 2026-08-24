@@ -23,6 +23,7 @@ import { validatePhone, sleep } from "./utils.js";
 
 const MOCK_OTP_STORAGE_PREFIX = "shoham_mock_otp_";
 const MOCK_OTP_TTL_MS = 5 * 60 * 1000; // 5 minutos, igual a um OTP real
+const MOCK_SESSION_KEY = "shoham_mock_session_phone";
 
 /**
  * Solicita o envio do código OTP para o telefone informado.
@@ -83,5 +84,31 @@ export async function verifyOtp(e164, code) {
   }
 
   sessionStorage.removeItem(MOCK_OTP_STORAGE_PREFIX + e164);
+  setMockSession(e164);
   return { success: true };
+}
+
+// ----------------------------------------------------------------------------
+// Sessão (mock)
+//
+// Enquanto o login é simulado, "estar logado" significa ter um telefone
+// gravado aqui. Quando a autenticação real for ligada, troque estas três
+// funções por chamadas a supabase.auth.getSession() / signOut() — as
+// páginas que as usam (index.html, cadastro.js, dashboard) não devem
+// precisar mudar, só a implementação aqui dentro.
+// ----------------------------------------------------------------------------
+
+function setMockSession(e164) {
+  sessionStorage.setItem(MOCK_SESSION_KEY, e164);
+}
+
+/** @returns {string|null} telefone (E.164) da sessão mock atual, ou null se deslogado */
+export function getSessionPhone() {
+  return sessionStorage.getItem(MOCK_SESSION_KEY);
+}
+
+export function logout() {
+  sessionStorage.removeItem(MOCK_SESSION_KEY);
+  // TODO: quando a autenticação real estiver ligada, chamar também
+  // supabase.auth.signOut() aqui.
 }

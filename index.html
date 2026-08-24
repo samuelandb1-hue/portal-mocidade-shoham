@@ -86,13 +86,12 @@
   </div>
 
   <script type="module">
-    import { requestOtp, verifyOtp } from "./js/auth.js";
-    // Nota: propositalmente NÃO importamos supabase-client.js aqui. auth.js
-    // ainda roda 100% em modo mock (sem Supabase) — importar o client só
-    // pra checar configuração faria esta tela depender de rede/CDN à toa,
-    // e quebraria o login mock caso o carregamento da lib falhasse.
-    // Quando auth.js passar a usar o Supabase de verdade, mover essa
-    // checagem pra lá.
+    import { requestOtp, verifyOtp, getSessionPhone } from "./js/auth.js";
+    import { hasProfile } from "./js/cadastro.js";
+    // Nota: o carregamento da lib do Supabase é preguiçoso (só acontece se
+    // isSupabaseConfigured for true — ver js/supabase-client.js), então
+    // importar cadastro.js aqui não faz esta tela depender de rede/CDN
+    // enquanto o projeto não estiver configurado.
 
     const phoneStep = document.getElementById("phone-step");
     const otpStep = document.getElementById("otp-step");
@@ -118,6 +117,13 @@
     // o aviso fica sempre visível até o dia em que essa tela passar a
     // chamar o Supabase de verdade.
     mockWarning.classList.remove("hidden");
+
+    // Quem já está logado não precisa ver a tela de login de novo.
+    (async () => {
+      if (getSessionPhone()) {
+        window.location.replace((await hasProfile()) ? "dashboard.html" : "cadastro.html");
+      }
+    })();
 
     function setFieldError(fieldEl, errorEl, message) {
       if (message) {
@@ -180,11 +186,8 @@
         return;
       }
 
-      // TODO: redirecionar para dashboard.html quando o módulo existir.
-      setAlert(otpAlert, null);
-      otpAlert.classList.remove("alert-error");
-      otpAlert.classList.add("alert-success");
-      setAlert(otpAlert, "Login confirmado! (dashboard ainda não implementado)");
+      const destino = (await hasProfile()) ? "dashboard.html" : "cadastro.html";
+      window.location.replace(destino);
     });
 
     changePhoneBtn.addEventListener("click", () => {

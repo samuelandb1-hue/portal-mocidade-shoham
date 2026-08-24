@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal da Mocidade Shoham — Completar cadastro</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="page">
+    <main class="container">
+      <div class="brand">
+        <h1 class="brand-title">Complete seu cadastro</h1>
+        <p class="brand-subtitle">Só o essencial, pra te reconhecer e organizar as atividades.</p>
+      </div>
+
+      <div id="loading-check" class="card text-center">
+        <p class="text-muted">Carregando...</p>
+      </div>
+
+      <form id="cadastro-form" class="card stack hidden">
+        <div class="field" id="full-name-field">
+          <label for="full-name">Nome completo</label>
+          <input type="text" id="full-name" name="full-name" autocomplete="name" required />
+          <span class="field-error" id="full-name-error"></span>
+        </div>
+
+        <div class="field" id="birth-date-field">
+          <label for="birth-date">Data de nascimento</label>
+          <input type="date" id="birth-date" name="birth-date" required />
+          <span class="field-error" id="birth-date-error"></span>
+        </div>
+
+        <div class="field" id="email-field">
+          <label for="email">E-mail (opcional)</label>
+          <input type="email" id="email" name="email" autocomplete="email" placeholder="seuemail@exemplo.com" />
+          <span class="field-hint">Só usamos se for útil pra te avisar de algo importante.</span>
+        </div>
+
+        <!-- Aparece automaticamente quando a data de nascimento indica menor de idade -->
+        <div id="guardian-section" class="stack hidden">
+          <div class="alert alert-info">
+            Como você é menor de idade, precisamos do contato de um responsável.
+          </div>
+
+          <div class="field" id="guardian-name-field">
+            <label for="guardian-name">Nome do responsável</label>
+            <input type="text" id="guardian-name" name="guardian-name" />
+            <span class="field-error" id="guardian-name-error"></span>
+          </div>
+
+          <div class="field" id="guardian-phone-field">
+            <label for="guardian-phone">WhatsApp do responsável</label>
+            <input type="tel" id="guardian-phone" name="guardian-phone" inputmode="tel" placeholder="(11) 91234-5678" />
+            <span class="field-error" id="guardian-phone-error"></span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label style="display: flex; align-items: flex-start; gap: 8px; font-weight: 400;">
+            <input type="checkbox" id="terms-accepted" style="width: 20px; height: 20px; margin-top: 2px;" required />
+            <span>
+              Li e concordo com os
+              <a href="termos.html" target="_blank" rel="noopener">Termos de Uso</a>
+              do portal. *
+            </span>
+          </label>
+        </div>
+
+        <div class="field">
+          <label style="display: flex; align-items: flex-start; gap: 8px; font-weight: 400;">
+            <input type="checkbox" id="image-use-accepted" style="width: 20px; height: 20px; margin-top: 2px;" />
+            <span>
+              Autorizo o uso de fotos/vídeos das atividades da mocidade em que eu
+              apareça, para divulgação da mocidade (redes sociais, murais, etc).
+            </span>
+          </label>
+        </div>
+
+        <div id="form-alert" class="alert alert-error hidden"></div>
+
+        <button type="submit" class="btn btn-primary btn-block" id="submit-btn">
+          Concluir cadastro
+        </button>
+      </form>
+    </main>
+  </div>
+
+  <script type="module">
+    import { registerProfile, hasProfile, getAuthenticatedPhone } from "./js/cadastro.js";
+    import { isMinor } from "./js/utils.js";
+
+    const loadingCheck = document.getElementById("loading-check");
+    const form = document.getElementById("cadastro-form");
+
+    const fullNameInput = document.getElementById("full-name");
+    const birthDateInput = document.getElementById("birth-date");
+    const emailInput = document.getElementById("email");
+    const guardianSection = document.getElementById("guardian-section");
+    const guardianNameInput = document.getElementById("guardian-name");
+    const guardianPhoneInput = document.getElementById("guardian-phone");
+    const termsInput = document.getElementById("terms-accepted");
+    const imageUseInput = document.getElementById("image-use-accepted");
+    const formAlert = document.getElementById("form-alert");
+    const submitBtn = document.getElementById("submit-btn");
+
+    function setAlert(el, message) {
+      if (message) {
+        el.textContent = message;
+        el.classList.remove("hidden");
+      } else {
+        el.classList.add("hidden");
+      }
+    }
+
+    function setLoading(btn, loading) {
+      btn.disabled = loading;
+      btn.dataset.loading = loading ? "true" : "false";
+    }
+
+    // Mostra/esconde os campos do responsável conforme a data de nascimento
+    birthDateInput.addEventListener("change", () => {
+      const minor = birthDateInput.value && isMinor(birthDateInput.value);
+      guardianSection.classList.toggle("hidden", !minor);
+      guardianNameInput.required = Boolean(minor);
+      guardianPhoneInput.required = Boolean(minor);
+    });
+
+    async function init() {
+      const phone = await getAuthenticatedPhone();
+      if (!phone) {
+        window.location.replace("index.html");
+        return;
+      }
+
+      if (await hasProfile()) {
+        window.location.replace("dashboard.html");
+        return;
+      }
+
+      loadingCheck.classList.add("hidden");
+      form.classList.remove("hidden");
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setAlert(formAlert, "");
+      setLoading(submitBtn, true);
+
+      const result = await registerProfile({
+        fullName: fullNameInput.value,
+        birthDate: birthDateInput.value,
+        email: emailInput.value,
+        guardianName: guardianNameInput.value,
+        guardianPhone: guardianPhoneInput.value,
+        termsAccepted: termsInput.checked,
+        imageUseAccepted: imageUseInput.checked,
+      });
+
+      setLoading(submitBtn, false);
+
+      if (!result.success) {
+        setAlert(formAlert, result.error);
+        return;
+      }
+
+      window.location.replace("dashboard.html");
+    });
+
+    init();
+  </script>
+</body>
+</html>

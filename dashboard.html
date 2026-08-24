@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal da Mocidade Shoham — Início</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="page">
+    <main class="container">
+      <div id="loading-state" class="card text-center">
+        <p class="text-muted">Carregando...</p>
+      </div>
+
+      <div id="dashboard-content" class="stack hidden">
+        <div class="brand" style="margin-bottom: var(--space-4);">
+          <h1 class="brand-title" id="greeting">Olá!</h1>
+        </div>
+
+        <!-- Estado vazio: ainda não há módulos implementados -->
+        <div class="card text-center stack">
+          <p>👋</p>
+          <p>
+            Seu cadastro está completo. Os próximos módulos (eventos,
+            calendário, comunicados...) ainda estão sendo construídos.
+          </p>
+          <p class="text-muted" style="font-size: 0.875rem;">
+            Volte em breve — cada módulo vai aparecer aqui conforme for
+            ficando pronto.
+          </p>
+        </div>
+
+        <button type="button" class="btn btn-ghost" id="logout-btn">Sair</button>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { getAuthenticatedPhone, hasProfile, getProfile } from "./js/cadastro.js";
+    import { logout } from "./js/auth.js";
+
+    const loadingState = document.getElementById("loading-state");
+    const content = document.getElementById("dashboard-content");
+    const greeting = document.getElementById("greeting");
+    const logoutBtn = document.getElementById("logout-btn");
+
+    async function init() {
+      const phone = await getAuthenticatedPhone();
+      if (!phone) {
+        window.location.replace("index.html");
+        return;
+      }
+
+      if (!(await hasProfile())) {
+        window.location.replace("cadastro.html");
+        return;
+      }
+
+      const profile = await getProfile();
+      const firstName = profile?.full_name?.trim().split(" ")[0] || "";
+      greeting.textContent = firstName ? `Olá, ${firstName}!` : "Olá!";
+
+      loadingState.classList.add("hidden");
+      content.classList.remove("hidden");
+    }
+
+    logoutBtn.addEventListener("click", () => {
+      logout();
+      window.location.replace("index.html");
+    });
+
+    init();
+  </script>
+</body>
+</html>
