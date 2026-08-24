@@ -22,6 +22,7 @@ destrutivo, conforme regra 4 da seção 12 do `CLAUDE.md`).
 | Arquivo | Tipo | O que faz |
 | :--- | :--- | :--- |
 | `0001_init_auth_foundation.sql` | Aditiva | Cria o enum `user_role`, a tabela `profiles` (com RLS), as funções auxiliares `is_leadership`/`is_admin`, e a tabela `user_consents` (log de consentimento LGPD, com RLS). |
+| `0002_eventos_comunicados.sql` | Aditiva | Cria `events` (líder cria/edita/cancela, todo mundo vê), `event_participants` (confirmação de presença — cada um só vê a própria, liderança vê todas; contagem agregada disponível a qualquer um via função, sem expor nomes) e `announcements` (comunicados — liderança publica, todo mundo lê). Depende da 0001. |
 
 ## Depois de aplicar a `0001`
 
@@ -38,3 +39,12 @@ própria API) que:
 
 Essas checagens não dá pra eu validar sozinho sem acesso ao seu projeto
 Supabase — preciso que você confirme por lá.
+
+## Depois de aplicar a `0002`
+
+- [ ] Um `jovem` **não consegue** criar/editar/cancelar eventos nem publicar
+      comunicados (só `lider`/`administrador` conseguem).
+- [ ] Um `jovem` consegue confirmar presença num evento, mas **não** consegue
+      ver a lista de quem mais confirmou (só a própria confirmação e a
+      contagem total).
+- [ ] Um `lider` consegue ver a lista completa de confirmados de um evento.
