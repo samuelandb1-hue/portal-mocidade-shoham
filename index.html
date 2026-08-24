@@ -87,7 +87,12 @@
 
   <script type="module">
     import { requestOtp, verifyOtp } from "./js/auth.js";
-    import { isSupabaseConfigured } from "./js/supabase-client.js";
+    // Nota: propositalmente NÃO importamos supabase-client.js aqui. auth.js
+    // ainda roda 100% em modo mock (sem Supabase) — importar o client só
+    // pra checar configuração faria esta tela depender de rede/CDN à toa,
+    // e quebraria o login mock caso o carregamento da lib falhasse.
+    // Quando auth.js passar a usar o Supabase de verdade, mover essa
+    // checagem pra lá.
 
     const phoneStep = document.getElementById("phone-step");
     const otpStep = document.getElementById("otp-step");
@@ -109,9 +114,10 @@
 
     let currentE164 = null;
 
-    if (!isSupabaseConfigured) {
-      mockWarning.classList.remove("hidden");
-    }
+    // auth.js está em modo mock (ver comentário no topo do arquivo), então
+    // o aviso fica sempre visível até o dia em que essa tela passar a
+    // chamar o Supabase de verdade.
+    mockWarning.classList.remove("hidden");
 
     function setFieldError(fieldEl, errorEl, message) {
       if (message) {
