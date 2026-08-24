@@ -24,6 +24,8 @@ destrutivo, conforme regra 4 da seção 12 do `CLAUDE.md`).
 | `0001_init_auth_foundation.sql` | Aditiva | Cria o enum `user_role`, a tabela `profiles` (com RLS), as funções auxiliares `is_leadership`/`is_admin`, e a tabela `user_consents` (log de consentimento LGPD, com RLS). |
 | `0002_eventos_comunicados.sql` | Aditiva | Cria `events` (líder cria/edita/cancela, todo mundo vê), `event_participants` (confirmação de presença — cada um só vê a própria, liderança vê todas; contagem agregada disponível a qualquer um via função, sem expor nomes) e `announcements` (comunicados — liderança publica, todo mundo lê). Depende da 0001. |
 | `0003_estudos_presenca.sql` | Aditiva | Cria `studies` (estudos/materiais — liderança publica, todo mundo lê; **conteúdo real é responsabilidade da liderança, nunca gerado por IA**), `attendance` (presença de fato no evento, só liderança registra — diferente de `event_participants`, que é a confirmação prévia) e a função `event_attendance_summary` (indicador agregado por evento, só pra liderança). Depende da 0001 e da 0002. |
+| `0004_restringe_gestao_usuarios_a_admin.sql` | Aditiva | Corrige a policy de UPDATE de `profiles` e a trigger anti-autopromoção: mudar o `role` de alguém passa a exigir `administrador`, não basta ser `lider`. Depende da 0001. |
+| `0005_solicitacao_exclusao.sql` | Aditiva | Cria `deletion_requests` (direito de exclusão da LGPD): a pessoa solicita, a liderança vê e marca como processada. A exclusão de fato (apagar `auth.users`) continua sendo manual, no painel do Supabase — exige a Admin API/service_role, que nunca deve rodar no navegador. Depende da 0001. |
 
 ## Depois de aplicar a `0001`
 
@@ -70,3 +72,19 @@ Supabase — preciso que você confirme por lá.
 - [ ] **Você precisa promover manualmente o primeiro `administrador`** via
       SQL Editor (`UPDATE public.profiles SET role = 'administrador' WHERE id = '...'`)
       — igual ao primeiro líder, ninguém pode se autopromover.
+
+## Depois de aplicar a `0005`
+
+- [ ] Um `jovem` consegue solicitar a própria exclusão, mas não em nome
+      de outra pessoa.
+- [ ] Uma segunda solicitação enquanto já existe uma pendente é
+      bloqueada (`deletion_requests_one_pending_per_profile`).
+- [ ] **Processo manual pendente de definir com a liderança**: quando uma
+      solicitação chegar (visível em `admin/usuarios.html`), alguém com
+      acesso ao painel do Supabase precisa, à mão: (1) excluir a pessoa
+      de `auth.users` (Authentication → Users) — isso já apaga o
+      `profiles` junto, por causa do `on delete cascade`; (2) marcar a
+      solicitação como `concluida`. Não existe automação pra isso ainda
+      porque exigiria a service_role key rodando em algum lugar seguro
+      fora do navegador (ex: uma Edge Function) — avaliar se vale a pena
+      quando o volume de pedidos justificar.
