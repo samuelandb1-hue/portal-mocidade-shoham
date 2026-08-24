@@ -174,6 +174,19 @@ export async function registerProfile(input) {
 }
 
 /**
+ * Perfil mock a partir do telefone (chave usada como "id" no modo mock).
+ * Usado por outros módulos mock (ex: eventos.js pra mostrar nome de quem
+ * confirmou presença) — no modo real isso vem de um JOIN com profiles.
+ * @param {string} phone
+ * @returns {{ full_name: string, role: string } | null}
+ */
+export function getMockProfileByPhone(phone) {
+  const profile = readMockProfiles()[phone];
+  if (!profile) return null;
+  return { full_name: profile.full_name, role: profile.role || "jovem" };
+}
+
+/**
  * Perfil da pessoa autenticada, se já tiver cadastro. Usado pelo
  * dashboard pra saudação e pra decidir o que mostrar.
  * @returns {Promise<object|null>}

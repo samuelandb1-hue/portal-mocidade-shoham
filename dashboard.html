@@ -8,7 +8,7 @@
   <style>
     .quick-links {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr;
       gap: var(--space-3);
     }
     .quick-link {
@@ -37,6 +37,17 @@
       border-radius: var(--radius-md);
       padding: var(--space-3) var(--space-4);
     }
+    .leadership-link {
+      display: block;
+      text-decoration: none;
+      color: var(--color-primary-hover);
+      background: var(--color-primary-soft);
+      border: 1px solid var(--color-primary-soft);
+      border-radius: var(--radius-md);
+      padding: var(--space-3) var(--space-4);
+      font-weight: 600;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -55,7 +66,10 @@
           <a class="quick-link" href="eventos.html">📅<br />Eventos</a>
           <a class="quick-link" href="calendario.html">🗓️<br />Calendário</a>
           <a class="quick-link" href="comunicados.html">📢<br />Comunicados</a>
+          <a class="quick-link" href="estudos.html">📖<br />Estudos</a>
         </div>
+
+        <a class="leadership-link hidden" href="indicadores.html" id="indicadores-link">📊 Indicadores (liderança)</a>
 
         <div>
           <p class="section-title">Próximos eventos</p>
@@ -147,6 +161,9 @@
       const profile = await getProfile();
       const firstName = profile?.full_name?.trim().split(" ")[0] || "";
       greeting.textContent = firstName ? `Olá, ${firstName}!` : "Olá!";
+
+      const isLeader = profile?.role === "lider" || profile?.role === "administrador";
+      document.getElementById("indicadores-link").classList.toggle("hidden", !isLeader);
 
       await Promise.all([renderUpcomingEvents(), renderRecentAnnouncements()]);
 

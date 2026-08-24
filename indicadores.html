@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal da Mocidade Shoham — Indicadores</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-5);
+    }
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-3);
+      margin-bottom: var(--space-5);
+    }
+    .stat-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-4);
+      text-align: center;
+    }
+    .stat-number {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--color-primary);
+    }
+    .stat-label {
+      font-size: 0.8125rem;
+      color: var(--color-text-muted);
+    }
+    .event-row {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-3) var(--space-4);
+      margin-bottom: var(--space-2);
+    }
+    .event-row .counts {
+      display: flex;
+      gap: var(--space-4);
+      margin-top: 4px;
+      font-size: 0.8125rem;
+      color: var(--color-text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <main class="container" style="max-width: 560px;">
+      <div class="top-nav">
+        <a href="dashboard.html" class="btn-ghost" style="text-decoration: none;">← Início</a>
+        <h1 style="font-size: 1.25rem;">Indicadores</h1>
+        <span style="width: 60px;"></span>
+      </div>
+
+      <div id="loading" class="text-center text-muted">Carregando...</div>
+
+      <div id="content" class="hidden">
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-number" id="stat-events">0</div>
+            <div class="stat-label">Eventos ativos</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="stat-studies">0</div>
+            <div class="stat-label">Estudos publicados</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="stat-announcements">0</div>
+            <div class="stat-label">Comunicados ativos</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="stat-confirmations">0</div>
+            <div class="stat-label">Confirmações (próx. eventos)</div>
+          </div>
+        </div>
+
+        <p style="font-weight: 700; margin-bottom: var(--space-2);">Confirmados x presentes por evento</p>
+        <p class="text-muted" id="events-empty" style="font-size: 0.875rem;">Nenhum evento ainda.</p>
+        <div id="events-summary"></div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { getAuthenticatedPhone } from "./js/cadastro.js";
+    import { listEvents, isLeadership, getAttendanceSummary } from "./js/eventos.js";
+    import { listStudies } from "./js/estudos.js";
+    import { listAnnouncements } from "./js/comunicados.js";
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    async function init() {
+      const phone = await getAuthenticatedPhone();
+      if (!phone) {
+        window.location.replace("index.html");
+        return;
+      }
+      if (!(await isLeadership())) {
+        window.location.replace("dashboard.html");
+        return;
+      }
+
+      const [events, studies, announcements] = await Promise.all([
+        listEvents(),
+        listStudies(),
+        listAnnouncements(),
+      ]);
+
+      const activeEvents = events.filter((e) => e.status === "ativo");
+      document.getElementById("stat-events").textContent = activeEvents.length;
+      document.getElementById("stat-studies").textContent = studies.length;
+      document.getElementById("stat-announcements").textContent = announcements.length;
+
+      const summaryContainer = document.getElementById("events-summary");
+      const eventsEmpty = document.getElementById("events-empty");
+
+      let totalConfirmations = 0;
+
+      if (activeEvents.length === 0) {
+        eventsEmpty.classList.remove("hidden");
+      } else {
+        eventsEmpty.classList.add("hidden");
+        for (const event of activeEvents) {
+          const summary = await getAttendanceSummary(event.id);
+          if (!summary) continue;
+          totalConfirmations += summary.confirmedCount;
+
+          const row = document.createElement("div");
+          row.className = "event-row";
+          const date = new Date(event.starts_at).toLocaleDateString("pt-BR");
+          row.innerHTML = `
+            <strong>${escapeHtml(event.title)}</strong>
+            <div class="text-muted" style="font-size: 0.8125rem;">${date}</div>
+            <div class="counts">
+              <span>${summary.confirmedCount} confirmados</span>
+              <span>${summary.attendedCount} presentes</span>
+            </div>
+          `;
+          summaryContainer.appendChild(row);
+        }
+      }
+
+      document.getElementById("stat-confirmations").textContent = totalConfirmations;
+
+      document.getElementById("loading").classList.add("hidden");
+      document.getElementById("content").classList.remove("hidden");
+    }
+
+    init();
+  </script>
+</body>
+</html>

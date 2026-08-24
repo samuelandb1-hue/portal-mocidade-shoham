@@ -7,11 +7,12 @@
 // ============================================================================
 
 import { getSupabaseClient, isSupabaseConfigured } from "./supabase-client.js";
-import { getAuthenticatedPhone, getProfile } from "./cadastro.js";
+import { getAuthenticatedPhone, getProfile, getMockProfileByPhone } from "./cadastro.js";
 import { readList, writeList, genId } from "./mock-store.js";
 
 const MOCK_EVENTS_KEY = "shoham_mock_events";
 const MOCK_PARTICIPANTS_KEY = "shoham_mock_event_participants";
+const MOCK_ATTENDANCE_KEY = "shoham_mock_attendance";
 
 export const EVENT_CATEGORIES = [
   "Culto",
@@ -241,4 +242,119 @@ export async function cancelPresence(eventId) {
   );
   writeList(MOCK_PARTICIPANTS_KEY, participants);
   return { success: true };
+}
+
+// ----------------------------------------------------------------------------
+// Presença de fato no evento (attendance) — diferente da confirmação
+// prévia acima. Só liderança usa isto, pra registrar quem realmente
+// apareceu (seção 8 do CLAUDE.md, "Presença vinculada a Eventos").
+// ----------------------------------------------------------------------------
+
+/**
+ * Lista de quem confirmou presença no evento, com nome e status de
+ * presença (marcado pela liderança), pra montar a tela de "tirar
+ * presença". Só liderança consegue chamar (RLS bloqueia o resto).
+ * @param {string} eventId
+ * @returns {Promise<Array<{ profileId: string, fullName: string, present: boolean|null }>>}
+ */
+export async function listConfirmedParticipants(eventId) {
+  if (!(await isLeadership())) return [];
+
+  if (isSupabaseConfigured) {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return [];
+
+    const { data: participants, error } = await supabase
+      .from("event_participants")
+      .select("profile_id, profiles(full_name)")
+      .eq("event_id", eventId);
+    if (error || !participants) return [];
+
+    const { data: attendanceRows } = await supabase
+      .from("attendance")
+      .select("profile_id, present")
+      .eq("event_id", eventId);
+    const attendanceMap = new Map((attendanceRows || []).map((a) => [a.profile_id, a.present]));
+
+    return participants.map((p) => ({
+      profileId: p.profile_id,
+      fullName: p.profiles?.full_name || "(sem nome)",
+      present: attendanceMap.has(p.profile_id) ? attendanceMap.get(p.profile_id) : null,
+    }));
+  }
+
+  const participants = readList(MOCK_PARTICIPANTS_KEY).filter((p) => p.event_id === eventId);
+  const attendance = readList(MOCK_ATTENDANCE_KEY).filter((a) => a.event_id === eventId);
+  const attendanceMap = new Map(attendance.map((a) => [a.profile_id, a.present]));
+
+  return participants.map((p) => ({
+    profileId: p.profile_id,
+    fullName: getMockProfileByPhone(p.profile_id)?.full_name || "(sem nome)",
+    present: attendanceMap.has(p.profile_id) ? attendanceMap.get(p.profile_id) : null,
+  }));
+}
+
+/**
+ * Registra se a pessoa esteve presente ou não. Só liderança.
+ * @param {string} eventId
+ * @param {string} profileId
+ * @param {boolean} present
+ * @returns {Promise<{ success: boolean, error?: string }>}
+ */
+export async function markAttendance(eventId, profileId, present) {
+  if (!(await isLeadership())) {
+    return { success: false, error: "Só líderes ou administradores podem registrar presença." };
+  }
+
+  if (isSupabaseConfigured) {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return { success: false, error: "Sem conexão com o servidor." };
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) return { success: false, error: "Sessão expirada." };
+
+    const { error } = await supabase
+      .from("attendance")
+      .upsert(
+        { event_id: eventId, profile_id: profileId, present, marked_by: userData.user.id },
+        { onConflict: "event_id,profile_id" }
+      );
+
+    if (error) return { success: false, error: "Não foi possível registrar a presença." };
+    return { success: true };
+  }
+
+  const attendance = readList(MOCK_ATTENDANCE_KEY);
+  const existing = attendance.find((a) => a.event_id === eventId && a.profile_id === profileId);
+  if (existing) {
+    existing.present = present;
+  } else {
+    attendance.push({ event_id: eventId, profile_id: profileId, present });
+  }
+  writeList(MOCK_ATTENDANCE_KEY, attendance);
+  return { success: true };
+}
+
+/**
+ * Resumo agregado (confirmados x presentes) de um evento, só liderança.
+ * @param {string} eventId
+ * @returns {Promise<{ confirmedCount: number, attendedCount: number } | null>}
+ */
+export async function getAttendanceSummary(eventId) {
+  if (!(await isLeadership())) return null;
+
+  if (isSupabaseConfigured) {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return null;
+    const { data, error } = await supabase
+      .rpc("event_attendance_summary", { p_event_id: eventId })
+      .maybeSingle();
+    if (error || !data) return null; // sem linha = sem permissão (ver supabase/README.md)
+    return { confirmedCount: Number(data.confirmed_count), attendedCount: Number(data.attended_count) };
+  }
+
+  const confirmedCount = readList(MOCK_PARTICIPANTS_KEY).filter((p) => p.event_id === eventId).length;
+  const attendedCount = readList(MOCK_ATTENDANCE_KEY).filter(
+    (a) => a.event_id === eventId && a.present
+  ).length;
+  return { confirmedCount, attendedCount };
 }

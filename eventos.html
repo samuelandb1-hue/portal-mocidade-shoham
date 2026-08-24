@@ -40,6 +40,41 @@
       align-items: center;
       margin-bottom: var(--space-5);
     }
+    .attendance-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      padding: var(--space-2) 0;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .attendance-row:last-child {
+      border-bottom: none;
+    }
+    .attendance-toggle {
+      display: flex;
+      gap: var(--space-1);
+    }
+    .attendance-toggle button {
+      min-height: 32px;
+      padding: 0 var(--space-3);
+      font-size: 0.8125rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
+      color: var(--color-text-muted);
+      cursor: pointer;
+    }
+    .attendance-toggle button.active-present {
+      background: var(--color-success-soft);
+      border-color: var(--color-success);
+      color: var(--color-success);
+    }
+    .attendance-toggle button.active-absent {
+      background: var(--color-danger-soft);
+      border-color: var(--color-danger);
+      color: var(--color-danger);
+    }
   </style>
 </head>
 <body>
@@ -91,6 +126,15 @@
           <button type="button" class="btn btn-block hidden" id="cancel-event-btn" style="background: var(--color-danger-soft); color: var(--color-danger);">
             Cancelar evento
           </button>
+        </div>
+
+        <!-- Tirar presença (só liderança) -->
+        <div id="attendance-section" class="card stack hidden">
+          <p style="font-weight: 700;">Presença</p>
+          <p class="text-muted" id="attendance-empty" style="font-size: 0.875rem;">
+            Ninguém confirmou presença ainda.
+          </p>
+          <div id="attendance-list" class="stack"></div>
         </div>
       </section>
 
@@ -149,6 +193,8 @@
       getParticipantCount,
       confirmPresence,
       cancelPresence,
+      listConfirmedParticipants,
+      markAttendance,
     } from "./js/eventos.js";
     import { getAuthenticatedPhone } from "./js/cadastro.js";
     import { formatDateBR } from "./js/utils.js";
@@ -252,7 +298,49 @@
       const leadership = await isLeadership();
       cancelEventBtn.classList.toggle("hidden", !leadership || cancelled);
 
+      if (leadership) {
+        await renderAttendanceSection(id);
+      } else {
+        document.getElementById("attendance-section").classList.add("hidden");
+      }
+
       showView("detail");
+    }
+
+    async function renderAttendanceSection(eventId) {
+      const section = document.getElementById("attendance-section");
+      const emptyEl = document.getElementById("attendance-empty");
+      const listEl = document.getElementById("attendance-list");
+      section.classList.remove("hidden");
+      listEl.innerHTML = "";
+
+      const participants = await listConfirmedParticipants(eventId);
+
+      if (participants.length === 0) {
+        emptyEl.classList.remove("hidden");
+        return;
+      }
+      emptyEl.classList.add("hidden");
+
+      for (const p of participants) {
+        const row = document.createElement("div");
+        row.className = "attendance-row";
+        row.innerHTML = `
+          <span>${escapeHtml(p.fullName)}</span>
+          <div class="attendance-toggle">
+            <button type="button" data-present="true" class="${p.present === true ? "active-present" : ""}">Presente</button>
+            <button type="button" data-present="false" class="${p.present === false ? "active-absent" : ""}">Ausente</button>
+          </div>
+        `;
+        row.querySelectorAll("button").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const present = btn.dataset.present === "true";
+            await markAttendance(eventId, p.profileId, present);
+            await renderAttendanceSection(eventId);
+          });
+        });
+        listEl.appendChild(row);
+      }
     }
 
     confirmPresenceBtn.addEventListener("click", async () => {
