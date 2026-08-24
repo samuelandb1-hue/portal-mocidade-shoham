@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal da Mocidade Shoham — Meu Perfil</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-5);
+    }
+    .role-badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: var(--color-primary-soft);
+      color: var(--color-primary-hover);
+      text-transform: capitalize;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <main class="container">
+      <div class="top-nav">
+        <a href="dashboard.html" class="btn-ghost" style="text-decoration: none;">← Início</a>
+        <h1 style="font-size: 1.25rem;">Meu Perfil</h1>
+        <span style="width: 60px;"></span>
+      </div>
+
+      <div id="loading" class="text-center text-muted">Carregando...</div>
+
+      <form id="profile-form" class="card stack hidden">
+        <div style="text-align: center; margin-bottom: var(--space-2);">
+          <span class="role-badge" id="role-badge"></span>
+        </div>
+
+        <div class="field">
+          <label for="full-name">Nome completo</label>
+          <input type="text" id="full-name" required />
+        </div>
+
+        <div class="field">
+          <label for="phone">WhatsApp</label>
+          <input type="text" id="phone" disabled />
+          <span class="field-hint">
+            Trocar de número ainda não está disponível por aqui — fale com a
+            liderança se precisar atualizar.
+          </span>
+        </div>
+
+        <div class="field">
+          <label for="birth-date">Data de nascimento</label>
+          <input type="text" id="birth-date" disabled />
+        </div>
+
+        <div class="field">
+          <label for="email">E-mail (opcional)</label>
+          <input type="email" id="email" placeholder="seuemail@exemplo.com" />
+        </div>
+
+        <div id="guardian-info" class="alert alert-info hidden"></div>
+
+        <div id="form-alert" class="alert alert-error hidden"></div>
+        <div id="form-success" class="alert alert-success hidden"></div>
+
+        <button type="submit" class="btn btn-primary btn-block" id="save-btn">Salvar alterações</button>
+      </form>
+    </main>
+  </div>
+
+  <script type="module">
+    import { getAuthenticatedPhone, getProfile, updateProfile } from "./js/cadastro.js";
+    import { formatDateBR } from "./js/utils.js";
+
+    const loading = document.getElementById("loading");
+    const form = document.getElementById("profile-form");
+
+    function setAlert(el, message) {
+      if (message) {
+        el.textContent = message;
+        el.classList.remove("hidden");
+      } else {
+        el.classList.add("hidden");
+      }
+    }
+
+    async function init() {
+      const phone = await getAuthenticatedPhone();
+      if (!phone) {
+        window.location.replace("index.html");
+        return;
+      }
+
+      const profile = await getProfile();
+      if (!profile) {
+        window.location.replace("cadastro.html");
+        return;
+      }
+
+      document.getElementById("role-badge").textContent = profile.role;
+      document.getElementById("full-name").value = profile.full_name || "";
+      document.getElementById("phone").value = profile.phone || "";
+      document.getElementById("birth-date").value = profile.birth_date ? formatDateBR(profile.birth_date) : "";
+      document.getElementById("email").value = profile.email || "";
+
+      if (profile.guardian_name) {
+        const guardianInfo = document.getElementById("guardian-info");
+        guardianInfo.textContent = `Responsável cadastrado: ${profile.guardian_name} (${profile.guardian_phone || "sem telefone"})`;
+        guardianInfo.classList.remove("hidden");
+      }
+
+      loading.classList.add("hidden");
+      form.classList.remove("hidden");
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setAlert(document.getElementById("form-alert"), "");
+      setAlert(document.getElementById("form-success"), "");
+
+      const saveBtn = document.getElementById("save-btn");
+      saveBtn.disabled = true;
+      saveBtn.dataset.loading = "true";
+
+      const result = await updateProfile({
+        fullName: document.getElementById("full-name").value,
+        email: document.getElementById("email").value,
+      });
+
+      saveBtn.disabled = false;
+      saveBtn.dataset.loading = "false";
+
+      if (!result.success) {
+        setAlert(document.getElementById("form-alert"), result.error);
+        return;
+      }
+
+      setAlert(document.getElementById("form-success"), "Alterações salvas!");
+    });
+
+    init();
+  </script>
+</body>
+</html>

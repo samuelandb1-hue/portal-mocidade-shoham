@@ -202,7 +202,7 @@ export async function getProfile() {
     if (!userData?.user) return null;
     const { data } = await supabase
       .from("profiles")
-      .select("full_name, role, phone")
+      .select("full_name, role, phone, email, birth_date, guardian_name, guardian_phone")
       .eq("id", userData.user.id)
       .maybeSingle();
     return data || null;
@@ -210,7 +210,54 @@ export async function getProfile() {
 
   const profile = readMockProfiles()[phone];
   if (!profile) return null;
-  return { full_name: profile.full_name, role: profile.role || "jovem", phone };
+  return {
+    full_name: profile.full_name,
+    role: profile.role || "jovem",
+    phone,
+    email: profile.email || null,
+    birth_date: profile.birth_date,
+    guardian_name: profile.guardian_name || null,
+    guardian_phone: profile.guardian_phone || null,
+  };
+}
+
+/**
+ * Atualiza os campos editáveis do próprio perfil (nome e e-mail). Não dá
+ * pra mudar telefone, nascimento ou role por aqui — telefone tem um fluxo
+ * próprio (seção 5.1 do CLAUDE.md, ainda pendente do Twilio real);
+ * nascimento e role não são autoeditáveis por regra de negócio.
+ * @param {{ fullName: string, email?: string }} input
+ * @returns {Promise<{ success: boolean, error?: string }>}
+ */
+export async function updateProfile(input) {
+  if (!input.fullName?.trim()) {
+    return { success: false, error: "O nome não pode ficar vazio." };
+  }
+
+  const phone = await getAuthenticatedPhone();
+  if (!phone) return { success: false, error: "Sessão expirada. Faça login novamente." };
+
+  if (isSupabaseConfigured) {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return { success: false, error: "Sem conexão com o servidor." };
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) return { success: false, error: "Sessão expirada." };
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ full_name: input.fullName.trim(), email: input.email?.trim() || null })
+      .eq("id", userData.user.id);
+
+    if (error) return { success: false, error: "Não foi possível salvar as alterações." };
+    return { success: true };
+  }
+
+  const all = readMockProfiles();
+  if (!all[phone]) return { success: false, error: "Perfil não encontrado." };
+  all[phone].full_name = input.fullName.trim();
+  all[phone].email = input.email?.trim() || null;
+  localStorage.setItem(MOCK_PROFILES_KEY, JSON.stringify(all));
+  return { success: true };
 }
 
 /**
