@@ -261,6 +261,34 @@ export async function updateProfile(input) {
 }
 
 /**
+ * Todos os perfis cadastrados (modo mock). Usado por js/admin.js pra
+ * listar usuários — no modo real isso é um SELECT * direto na tabela
+ * (RLS já garante que só admin consegue rodar essa query).
+ * @returns {Array<{ id: string, full_name: string, phone: string, role: string }>}
+ */
+export function getAllMockProfiles() {
+  const all = readMockProfiles();
+  return Object.entries(all).map(([phone, profile]) => ({
+    id: phone, // no modo mock, o telefone faz as vezes do id (uuid) real
+    full_name: profile.full_name,
+    phone,
+    role: profile.role || "jovem",
+  }));
+}
+
+/**
+ * Muda o role de um perfil mock pelo telefone (= id no modo mock).
+ * @param {string} phone
+ * @param {"jovem"|"lider"|"administrador"} role
+ */
+export function setMockProfileRole(phone, role) {
+  const all = readMockProfiles();
+  if (!all[phone]) return;
+  all[phone].role = role;
+  localStorage.setItem(MOCK_PROFILES_KEY, JSON.stringify(all));
+}
+
+/**
  * ⚠️ SÓ PARA TESTES LOCAIS, nunca chamado por nenhuma tela do produto.
  * Promove o perfil mock do telefone informado a líder/administrador, pra
  * dar pra testar as telas restritas à liderança sem precisar de um
@@ -270,10 +298,7 @@ export async function updateProfile(input) {
  * @param {"jovem"|"lider"|"administrador"} role
  */
 export function __devSetMockRole(phone, role) {
-  const all = readMockProfiles();
-  if (!all[phone]) return;
-  all[phone].role = role;
-  localStorage.setItem(MOCK_PROFILES_KEY, JSON.stringify(all));
+  setMockProfileRole(phone, role);
 }
 
 function traduzErroSupabase(message) {

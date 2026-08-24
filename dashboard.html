@@ -70,6 +70,7 @@
         </div>
 
         <a class="leadership-link hidden" href="indicadores.html" id="indicadores-link">📊 Indicadores (liderança)</a>
+        <a class="leadership-link hidden" href="admin/usuarios.html" id="usuarios-link">👥 Gerenciar usuários (admin)</a>
 
         <div>
           <p class="section-title">Próximos eventos</p>
@@ -167,6 +168,7 @@
 
       const isLeader = profile?.role === "lider" || profile?.role === "administrador";
       document.getElementById("indicadores-link").classList.toggle("hidden", !isLeader);
+      document.getElementById("usuarios-link").classList.toggle("hidden", profile?.role !== "administrador");
 
       await Promise.all([renderUpcomingEvents(), renderRecentAnnouncements()]);
 

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal da Mocidade Shoham — Usuários</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-5);
+    }
+    .user-row {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-3) var(--space-4);
+      margin-bottom: var(--space-2);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .user-info {
+      min-width: 0;
+    }
+    .user-name {
+      font-weight: 600;
+    }
+    .user-phone {
+      font-size: 0.8125rem;
+      color: var(--color-text-muted);
+    }
+    .role-select {
+      min-height: 36px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      padding: 0 var(--space-2);
+      font-size: 0.8125rem;
+      background: var(--color-surface);
+      color: var(--color-text);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <main class="container" style="max-width: 560px;">
+      <div class="top-nav">
+        <a href="../dashboard.html" class="btn-ghost" style="text-decoration: none;">← Início</a>
+        <h1 style="font-size: 1.25rem;">Usuários</h1>
+        <span style="width: 60px;"></span>
+      </div>
+
+      <div id="loading" class="text-center text-muted">Carregando...</div>
+
+      <div id="content" class="hidden">
+        <div id="save-alert" class="alert alert-error hidden" style="margin-bottom: var(--space-4);"></div>
+        <div id="empty" class="card text-center hidden">
+          <p>Nenhum usuário cadastrado ainda.</p>
+        </div>
+        <div id="users-list"></div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { getAuthenticatedPhone } from "../js/cadastro.js";
+    import { isAdmin, listAllProfiles, setUserRole, ROLES } from "../js/admin.js";
+
+    const ROLE_LABELS = { jovem: "Jovem", lider: "Líder", administrador: "Administrador" };
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    async function renderList() {
+      const container = document.getElementById("users-list");
+      const empty = document.getElementById("empty");
+      container.innerHTML = "";
+
+      const users = await listAllProfiles();
+      if (users.length === 0) {
+        empty.classList.remove("hidden");
+        return;
+      }
+      empty.classList.add("hidden");
+
+      const myPhone = await getAuthenticatedPhone();
+
+      for (const user of users) {
+        const row = document.createElement("div");
+        row.className = "user-row";
+
+        const select = document.createElement("select");
+        select.className = "role-select";
+        for (const role of ROLES) {
+          const opt = document.createElement("option");
+          opt.value = role;
+          opt.textContent = ROLE_LABELS[role];
+          if (role === user.role) opt.selected = true;
+          select.appendChild(opt);
+        }
+        // não deixa a pessoa mudar o próprio nível de acesso por aqui
+        // (evita se auto-rebaixar sem querer)
+        select.disabled = user.phone === myPhone;
+
+        select.addEventListener("change", async () => {
+          const alertEl = document.getElementById("save-alert");
+          alertEl.classList.add("hidden");
+          const previous = user.role;
+          const result = await setUserRole(user.id, select.value);
+          if (!result.success) {
+            select.value = previous;
+            alertEl.textContent = result.error;
+            alertEl.classList.remove("hidden");
+            return;
+          }
+          user.role = select.value;
+        });
+
+        row.innerHTML = `
+          <div class="user-info">
+            <div class="user-name">${escapeHtml(user.full_name)}</div>
+            <div class="user-phone">${escapeHtml(user.phone)}</div>
+          </div>
+        `;
+        row.appendChild(select);
+        container.appendChild(row);
+      }
+    }
+
+    async function init() {
+      const phone = await getAuthenticatedPhone();
+      if (!phone) {
+        window.location.replace("../index.html");
+        return;
+      }
+      if (!(await isAdmin())) {
+        window.location.replace("../dashboard.html");
+        return;
+      }
+
+      await renderList();
+      document.getElementById("loading").classList.add("hidden");
+      document.getElementById("content").classList.remove("hidden");
+    }
+
+    init();
+  </script>
+</body>
+</html>
