@@ -23,6 +23,7 @@ destrutivo, conforme regra 4 da seção 12 do `CLAUDE.md`).
 | :--- | :--- | :--- |
 | `0001_init_auth_foundation.sql` | Aditiva | Cria o enum `user_role`, a tabela `profiles` (com RLS), as funções auxiliares `is_leadership`/`is_admin`, e a tabela `user_consents` (log de consentimento LGPD, com RLS). |
 | `0002_eventos_comunicados.sql` | Aditiva | Cria `events` (líder cria/edita/cancela, todo mundo vê), `event_participants` (confirmação de presença — cada um só vê a própria, liderança vê todas; contagem agregada disponível a qualquer um via função, sem expor nomes) e `announcements` (comunicados — liderança publica, todo mundo lê). Depende da 0001. |
+| `0003_estudos_presenca.sql` | Aditiva | Cria `studies` (estudos/materiais — liderança publica, todo mundo lê; **conteúdo real é responsabilidade da liderança, nunca gerado por IA**), `attendance` (presença de fato no evento, só liderança registra — diferente de `event_participants`, que é a confirmação prévia) e a função `event_attendance_summary` (indicador agregado por evento, só pra liderança). Depende da 0001 e da 0002. |
 
 ## Depois de aplicar a `0001`
 
@@ -48,3 +49,13 @@ Supabase — preciso que você confirme por lá.
       ver a lista de quem mais confirmou (só a própria confirmação e a
       contagem total).
 - [ ] Um `lider` consegue ver a lista completa de confirmados de um evento.
+
+## Depois de aplicar a `0003`
+
+- [ ] Um `jovem` **não consegue** publicar estudos nem marcar a própria
+      presença (`attendance`) — só `lider`/`administrador`.
+- [ ] Um `jovem` consegue ver a própria presença, mas não a de outros.
+- [ ] `event_attendance_summary(event_id)` chamado por um `jovem` retorna
+      **0 linhas** (não um erro) — é assim mesmo, por design (sem
+      permissão = sem resultado). O código que chama essa função precisa
+      tratar "nenhuma linha" como "sem acesso", não como erro.
