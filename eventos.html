@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal da Mocidade Shoham — Eventos</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .event-card {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-4);
+      cursor: pointer;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: var(--color-primary-soft);
+      color: var(--color-primary-hover);
+    }
+    .badge-cancelado {
+      background: var(--color-danger-soft);
+      color: var(--color-danger);
+    }
+    .event-date {
+      font-size: 0.875rem;
+      color: var(--color-text-muted);
+      margin-top: 4px;
+    }
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-5);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <main class="container" style="max-width: 560px;">
+      <div class="top-nav">
+        <a href="dashboard.html" class="btn-ghost" style="text-decoration: none;">← Início</a>
+        <h1 style="font-size: 1.25rem;">Eventos</h1>
+        <button type="button" class="btn btn-primary hidden" id="new-event-btn" style="padding: 0 var(--space-3); min-height: 36px; font-size: 0.875rem;">
+          + Novo
+        </button>
+      </div>
+
+      <!-- LISTA -->
+      <section id="list-view">
+        <div id="list-loading" class="text-center text-muted">Carregando eventos...</div>
+        <div id="list-empty" class="card text-center hidden">
+          <p>📅</p>
+          <p>Nenhum evento cadastrado ainda.</p>
+        </div>
+        <div id="events-list" class="stack"></div>
+      </section>
+
+      <!-- DETALHE -->
+      <section id="detail-view" class="hidden stack">
+        <button type="button" class="btn-ghost" id="back-to-list-btn" style="align-self: flex-start; padding: 0;">← Voltar</button>
+
+        <div class="card stack">
+          <div>
+            <span class="badge" id="detail-category"></span>
+            <span class="badge badge-cancelado hidden" id="detail-status-badge">Cancelado</span>
+          </div>
+          <h2 id="detail-title" style="font-size: 1.25rem;"></h2>
+          <p class="event-date" id="detail-date"></p>
+          <p class="text-muted" id="detail-location"></p>
+          <p id="detail-description"></p>
+
+          <p class="text-muted" id="detail-participant-count"></p>
+
+          <div id="detail-alert" class="alert alert-error hidden"></div>
+
+          <button type="button" class="btn btn-primary btn-block" id="confirm-presence-btn">
+            Confirmar presença
+          </button>
+          <button type="button" class="btn btn-ghost btn-block hidden" id="cancel-presence-btn">
+            Desmarcar presença
+          </button>
+
+          <button type="button" class="btn btn-block hidden" id="cancel-event-btn" style="background: var(--color-danger-soft); color: var(--color-danger);">
+            Cancelar evento
+          </button>
+        </div>
+      </section>
+
+      <!-- NOVO EVENTO (só liderança) -->
+      <section id="new-event-view" class="hidden stack">
+        <button type="button" class="btn-ghost" id="back-from-new-btn" style="align-self: flex-start; padding: 0;">← Voltar</button>
+
+        <form id="new-event-form" class="card stack">
+          <div class="field">
+            <label for="event-title">Título</label>
+            <input type="text" id="event-title" required />
+          </div>
+
+          <div class="field">
+            <label for="event-category">Categoria</label>
+            <select id="event-category" required style="min-height: var(--tap-target); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 0 var(--space-4);"></select>
+          </div>
+
+          <div class="field">
+            <label for="event-location">Local</label>
+            <input type="text" id="event-location" placeholder="Igreja Sede, salão dos jovens..." />
+          </div>
+
+          <div class="field">
+            <label for="event-starts">Início</label>
+            <input type="datetime-local" id="event-starts" required />
+          </div>
+
+          <div class="field">
+            <label for="event-ends">Término (opcional)</label>
+            <input type="datetime-local" id="event-ends" />
+          </div>
+
+          <div class="field">
+            <label for="event-description">Descrição (opcional)</label>
+            <textarea id="event-description" rows="4" style="border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-3);"></textarea>
+          </div>
+
+          <div id="new-event-alert" class="alert alert-error hidden"></div>
+
+          <button type="submit" class="btn btn-primary btn-block" id="create-event-btn">Criar evento</button>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <script type="module">
+    import {
+      EVENT_CATEGORIES,
+      listEvents,
+      getEvent,
+      createEvent,
+      cancelEvent,
+      isLeadership,
+      hasConfirmedPresence,
+      getParticipantCount,
+      confirmPresence,
+      cancelPresence,
+    } from "./js/eventos.js";
+    import { getAuthenticatedPhone } from "./js/cadastro.js";
+    import { formatDateBR } from "./js/utils.js";
+
+    const listView = document.getElementById("list-view");
+    const detailView = document.getElementById("detail-view");
+    const newEventView = document.getElementById("new-event-view");
+
+    const listLoading = document.getElementById("list-loading");
+    const listEmpty = document.getElementById("list-empty");
+    const eventsListEl = document.getElementById("events-list");
+    const newEventBtn = document.getElementById("new-event-btn");
+
+    function showView(view) {
+      listView.classList.toggle("hidden", view !== "list");
+      detailView.classList.toggle("hidden", view !== "detail");
+      newEventView.classList.toggle("hidden", view !== "new");
+    }
+
+    function formatEventDate(startsAt, endsAt) {
+      const start = new Date(startsAt);
+      let text = start.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+      if (endsAt) {
+        const end = new Date(endsAt);
+        text += ` até ${end.toLocaleString("pt-BR", { timeStyle: "short" })}`;
+      }
+      return text;
+    }
+
+    async function renderList() {
+      listLoading.classList.remove("hidden");
+      listEmpty.classList.add("hidden");
+      eventsListEl.innerHTML = "";
+
+      const events = await listEvents();
+
+      listLoading.classList.add("hidden");
+
+      if (events.length === 0) {
+        listEmpty.classList.remove("hidden");
+        return;
+      }
+
+      for (const event of events) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "event-card";
+        btn.innerHTML = `
+          <span class="badge${event.status === "cancelado" ? " badge-cancelado" : ""}">${event.category}${event.status === "cancelado" ? " · cancelado" : ""}</span>
+          <div style="font-weight: 600; margin-top: 8px;">${escapeHtml(event.title)}</div>
+          <div class="event-date">${formatEventDate(event.starts_at, event.ends_at)}</div>
+        `;
+        btn.addEventListener("click", () => openDetail(event.id));
+        eventsListEl.appendChild(btn);
+      }
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    const detailCategory = document.getElementById("detail-category");
+    const detailStatusBadge = document.getElementById("detail-status-badge");
+    const detailTitle = document.getElementById("detail-title");
+    const detailDate = document.getElementById("detail-date");
+    const detailLocation = document.getElementById("detail-location");
+    const detailDescription = document.getElementById("detail-description");
+    const detailParticipantCount = document.getElementById("detail-participant-count");
+    const detailAlert = document.getElementById("detail-alert");
+    const confirmPresenceBtn = document.getElementById("confirm-presence-btn");
+    const cancelPresenceBtn = document.getElementById("cancel-presence-btn");
+    const cancelEventBtn = document.getElementById("cancel-event-btn");
+
+    let currentEventId = null;
+
+    async function openDetail(id) {
+      currentEventId = id;
+      detailAlert.classList.add("hidden");
+      const event = await getEvent(id);
+      if (!event) return;
+
+      detailCategory.textContent = event.category;
+      detailStatusBadge.classList.toggle("hidden", event.status !== "cancelado");
+      detailTitle.textContent = event.title;
+      detailDate.textContent = formatEventDate(event.starts_at, event.ends_at);
+      detailLocation.textContent = event.location || "";
+      detailLocation.classList.toggle("hidden", !event.location);
+      detailDescription.textContent = event.description || "";
+      detailDescription.classList.toggle("hidden", !event.description);
+
+      const count = await getParticipantCount(id);
+      detailParticipantCount.textContent = `${count} ${count === 1 ? "pessoa confirmou presença" : "pessoas confirmaram presença"}`;
+
+      const confirmed = await hasConfirmedPresence(id);
+      const cancelled = event.status === "cancelado";
+      confirmPresenceBtn.classList.toggle("hidden", confirmed || cancelled);
+      cancelPresenceBtn.classList.toggle("hidden", !confirmed || cancelled);
+
+      const leadership = await isLeadership();
+      cancelEventBtn.classList.toggle("hidden", !leadership || cancelled);
+
+      showView("detail");
+    }
+
+    confirmPresenceBtn.addEventListener("click", async () => {
+      const result = await confirmPresence(currentEventId);
+      if (!result.success) {
+        detailAlert.textContent = result.error;
+        detailAlert.classList.remove("hidden");
+        return;
+      }
+      openDetail(currentEventId);
+    });
+
+    cancelPresenceBtn.addEventListener("click", async () => {
+      const result = await cancelPresence(currentEventId);
+      if (!result.success) {
+        detailAlert.textContent = result.error;
+        detailAlert.classList.remove("hidden");
+        return;
+      }
+      openDetail(currentEventId);
+    });
+
+    cancelEventBtn.addEventListener("click", async () => {
+      if (!confirm("Cancelar este evento? Quem já confirmou presença vai ver o evento marcado como cancelado.")) return;
+      const result = await cancelEvent(currentEventId);
+      if (!result.success) {
+        detailAlert.textContent = result.error;
+        detailAlert.classList.remove("hidden");
+        return;
+      }
+      await openDetail(currentEventId);
+      await renderList();
+    });
+
+    document.getElementById("back-to-list-btn").addEventListener("click", () => showView("list"));
+
+    // --- novo evento ---
+    const categorySelect = document.getElementById("event-category");
+    for (const cat of EVENT_CATEGORIES) {
+      const opt = document.createElement("option");
+      opt.value = cat;
+      opt.textContent = cat;
+      categorySelect.appendChild(opt);
+    }
+
+    newEventBtn.addEventListener("click", () => showView("new"));
+    document.getElementById("back-from-new-btn").addEventListener("click", () => showView("list"));
+
+    document.getElementById("new-event-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const alertEl = document.getElementById("new-event-alert");
+      alertEl.classList.add("hidden");
+
+      const startsLocal = document.getElementById("event-starts").value;
+      const endsLocal = document.getElementById("event-ends").value;
+
+      const result = await createEvent({
+        title: document.getElementById("event-title").value,
+        category: categorySelect.value,
+        location: document.getElementById("event-location").value,
+        description: document.getElementById("event-description").value,
+        startsAt: startsLocal ? new Date(startsLocal).toISOString() : null,
+        endsAt: endsLocal ? new Date(endsLocal).toISOString() : null,
+      });
+
+      if (!result.success) {
+        alertEl.textContent = result.error;
+        alertEl.classList.remove("hidden");
+        return;
+      }
+
+      document.getElementById("new-event-form").reset();
+      showView("list");
+      await renderList();
+    });
+
+    async function init() {
+      const phone = await getAuthenticatedPhone();
+      if (!phone) {
+        window.location.replace("index.html");
+        return;
+      }
+
+      newEventBtn.classList.toggle("hidden", !(await isLeadership()));
+      await renderList();
+    }
+
+    init();
+  </script>
+</body>
+</html>

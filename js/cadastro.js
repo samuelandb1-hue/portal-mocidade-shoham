@@ -19,7 +19,10 @@ import { getSupabaseClient, isSupabaseConfigured } from "./supabase-client.js";
 import { isMinor } from "./utils.js";
 import { getSessionPhone } from "./auth.js";
 
-const MOCK_PROFILES_KEY = "shoham_mock_profiles"; // { [phone]: profile }
+// profiles mock ficam num objeto { [phone]: profile }, não numa lista —
+// por isso não usa js/mock-store.js (feito pra listas simples, usado por
+// eventos.js/comunicados.js).
+const MOCK_PROFILES_KEY = "shoham_mock_profiles";
 
 function readMockProfiles() {
   try {
@@ -160,6 +163,7 @@ export async function registerProfile(input) {
   // --- modo mock (ver aviso no topo do arquivo) ---
   writeMockProfile(phone, {
     ...profileRow,
+    role: "jovem", // autocadastro sempre entra como jovem, igual à regra real de RLS
     consents: {
       terms_of_use: true,
       image_use: Boolean(input.imageUseAccepted),
@@ -193,7 +197,23 @@ export async function getProfile() {
 
   const profile = readMockProfiles()[phone];
   if (!profile) return null;
-  return { full_name: profile.full_name, role: "jovem", phone };
+  return { full_name: profile.full_name, role: profile.role || "jovem", phone };
+}
+
+/**
+ * ⚠️ SÓ PARA TESTES LOCAIS, nunca chamado por nenhuma tela do produto.
+ * Promove o perfil mock do telefone informado a líder/administrador, pra
+ * dar pra testar as telas restritas à liderança sem precisar de um
+ * Supabase real configurado. Contra um Supabase de verdade isso não tem
+ * efeito nenhum — quem manda ali é a RLS do banco (ver migração 0001).
+ * @param {string} phone
+ * @param {"jovem"|"lider"|"administrador"} role
+ */
+export function __devSetMockRole(phone, role) {
+  const all = readMockProfiles();
+  if (!all[phone]) return;
+  all[phone].role = role;
+  localStorage.setItem(MOCK_PROFILES_KEY, JSON.stringify(all));
 }
 
 function traduzErroSupabase(message) {

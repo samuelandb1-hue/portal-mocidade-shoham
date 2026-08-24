@@ -5,6 +5,38 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Portal da Mocidade Shoham — Início</title>
   <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .quick-links {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-3);
+    }
+    .quick-link {
+      display: block;
+      text-decoration: none;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-4);
+      color: var(--color-text);
+      text-align: center;
+      font-weight: 600;
+    }
+    .section-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin: var(--space-2) 0;
+    }
+    .mini-card {
+      display: block;
+      text-decoration: none;
+      color: var(--color-text);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-3) var(--space-4);
+    }
+  </style>
 </head>
 <body>
   <div class="page">
@@ -14,21 +46,27 @@
       </div>
 
       <div id="dashboard-content" class="stack hidden">
-        <div class="brand" style="margin-bottom: var(--space-4);">
+        <div class="brand" style="margin-bottom: 0;">
           <h1 class="brand-title" id="greeting">Olá!</h1>
         </div>
 
-        <!-- Estado vazio: ainda não há módulos implementados -->
-        <div class="card text-center stack">
-          <p>👋</p>
-          <p>
-            Seu cadastro está completo. Os próximos módulos (eventos,
-            calendário, comunicados...) ainda estão sendo construídos.
-          </p>
-          <p class="text-muted" style="font-size: 0.875rem;">
-            Volte em breve — cada módulo vai aparecer aqui conforme for
-            ficando pronto.
-          </p>
+        <div class="quick-links">
+          <a class="quick-link" href="eventos.html">📅<br />Eventos</a>
+          <a class="quick-link" href="comunicados.html">📢<br />Comunicados</a>
+        </div>
+
+        <div>
+          <p class="section-title">Próximos eventos</p>
+          <div id="upcoming-events" class="stack">
+            <p class="text-muted" id="upcoming-events-empty">Nenhum evento agendado no momento.</p>
+          </div>
+        </div>
+
+        <div>
+          <p class="section-title">Últimos comunicados</p>
+          <div id="recent-announcements" class="stack">
+            <p class="text-muted" id="recent-announcements-empty">Nenhum comunicado publicado ainda.</p>
+          </div>
         </div>
 
         <button type="button" class="btn btn-ghost" id="logout-btn">Sair</button>
@@ -39,11 +77,58 @@
   <script type="module">
     import { getAuthenticatedPhone, hasProfile, getProfile } from "./js/cadastro.js";
     import { logout } from "./js/auth.js";
+    import { listEvents } from "./js/eventos.js";
+    import { listAnnouncements } from "./js/comunicados.js";
 
     const loadingState = document.getElementById("loading-state");
     const content = document.getElementById("dashboard-content");
     const greeting = document.getElementById("greeting");
     const logoutBtn = document.getElementById("logout-btn");
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    async function renderUpcomingEvents() {
+      const container = document.getElementById("upcoming-events");
+      const empty = document.getElementById("upcoming-events-empty");
+
+      const now = new Date().toISOString();
+      const upcoming = (await listEvents())
+        .filter((e) => e.status === "ativo" && e.starts_at >= now)
+        .slice(0, 3);
+
+      if (upcoming.length === 0) return; // mantém o texto de estado vazio
+
+      empty.remove();
+      for (const event of upcoming) {
+        const link = document.createElement("a");
+        link.className = "mini-card";
+        link.href = "eventos.html";
+        const date = new Date(event.starts_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+        link.innerHTML = `<strong>${escapeHtml(event.title)}</strong><br /><span class="text-muted" style="font-size: 0.8125rem;">${date}</span>`;
+        container.appendChild(link);
+      }
+    }
+
+    async function renderRecentAnnouncements() {
+      const container = document.getElementById("recent-announcements");
+      const empty = document.getElementById("recent-announcements-empty");
+
+      const recent = (await listAnnouncements()).slice(0, 3);
+      if (recent.length === 0) return;
+
+      empty.remove();
+      for (const item of recent) {
+        const link = document.createElement("a");
+        link.className = "mini-card";
+        link.href = "comunicados.html";
+        link.innerHTML = `<strong>${escapeHtml(item.title)}</strong><br /><span class="text-muted" style="font-size: 0.8125rem;">${escapeHtml(item.category)}</span>`;
+        container.appendChild(link);
+      }
+    }
 
     async function init() {
       const phone = await getAuthenticatedPhone();
@@ -60,6 +145,8 @@
       const profile = await getProfile();
       const firstName = profile?.full_name?.trim().split(" ")[0] || "";
       greeting.textContent = firstName ? `Olá, ${firstName}!` : "Olá!";
+
+      await Promise.all([renderUpcomingEvents(), renderRecentAnnouncements()]);
 
       loadingState.classList.add("hidden");
       content.classList.remove("hidden");

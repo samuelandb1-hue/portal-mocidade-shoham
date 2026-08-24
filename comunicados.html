@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal da Mocidade Shoham — Comunicados</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .announcement-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-4);
+    }
+    .announcement-card.priority-alta {
+      border-left: 4px solid var(--color-accent);
+    }
+    .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: var(--color-primary-soft);
+      color: var(--color-primary-hover);
+    }
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-5);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <main class="container" style="max-width: 560px;">
+      <div class="top-nav">
+        <a href="dashboard.html" class="btn-ghost" style="text-decoration: none;">← Início</a>
+        <h1 style="font-size: 1.25rem;">Comunicados</h1>
+        <button type="button" class="btn btn-primary hidden" id="new-btn" style="padding: 0 var(--space-3); min-height: 36px; font-size: 0.875rem;">
+          + Novo
+        </button>
+      </div>
+
+      <section id="list-view">
+        <div id="list-loading" class="text-center text-muted">Carregando comunicados...</div>
+        <div id="list-empty" class="card text-center hidden">
+          <p>📢</p>
+          <p>Nenhum comunicado publicado ainda.</p>
+        </div>
+        <div id="list" class="stack"></div>
+      </section>
+
+      <section id="new-view" class="hidden stack">
+        <button type="button" class="btn-ghost" id="back-btn" style="align-self: flex-start; padding: 0;">← Voltar</button>
+
+        <form id="new-form" class="card stack">
+          <div class="field">
+            <label for="ann-title">Título</label>
+            <input type="text" id="ann-title" required />
+          </div>
+
+          <div class="field">
+            <label for="ann-category">Categoria</label>
+            <select id="ann-category" required style="min-height: var(--tap-target); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 0 var(--space-4);"></select>
+          </div>
+
+          <div class="field">
+            <label for="ann-priority">Prioridade</label>
+            <select id="ann-priority" style="min-height: var(--tap-target); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 0 var(--space-4);">
+              <option value="normal">Normal</option>
+              <option value="alta">Alta</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="ann-description">Texto</label>
+            <textarea id="ann-description" rows="5" required style="border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-3);"></textarea>
+          </div>
+
+          <div id="new-alert" class="alert alert-error hidden"></div>
+
+          <button type="submit" class="btn btn-primary btn-block">Publicar</button>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <script type="module">
+    import {
+      ANNOUNCEMENT_CATEGORIES,
+      listAnnouncements,
+      createAnnouncement,
+      isLeadership,
+    } from "./js/comunicados.js";
+    import { getAuthenticatedPhone } from "./js/cadastro.js";
+
+    const listView = document.getElementById("list-view");
+    const newView = document.getElementById("new-view");
+    const listLoading = document.getElementById("list-loading");
+    const listEmpty = document.getElementById("list-empty");
+    const listEl = document.getElementById("list");
+    const newBtn = document.getElementById("new-btn");
+
+    function showView(view) {
+      listView.classList.toggle("hidden", view !== "list");
+      newView.classList.toggle("hidden", view !== "new");
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    async function renderList() {
+      listLoading.classList.remove("hidden");
+      listEmpty.classList.add("hidden");
+      listEl.innerHTML = "";
+
+      const items = await listAnnouncements();
+      listLoading.classList.add("hidden");
+
+      if (items.length === 0) {
+        listEmpty.classList.remove("hidden");
+        return;
+      }
+
+      for (const item of items) {
+        const card = document.createElement("article");
+        card.className = `announcement-card${item.priority === "alta" ? " priority-alta" : ""}`;
+        const date = new Date(item.published_at).toLocaleDateString("pt-BR");
+        card.innerHTML = `
+          <span class="badge">${item.category}</span>
+          <div style="font-weight: 600; margin-top: 8px;">${escapeHtml(item.title)}</div>
+          <p class="text-muted" style="font-size: 0.8125rem; margin: 4px 0 8px;">${date}</p>
+          <p>${escapeHtml(item.description)}</p>
+        `;
+        listEl.appendChild(card);
+      }
+    }
+
+    const categorySelect = document.getElementById("ann-category");
+    for (const cat of ANNOUNCEMENT_CATEGORIES) {
+      const opt = document.createElement("option");
+      opt.value = cat;
+      opt.textContent = cat;
+      categorySelect.appendChild(opt);
+    }
+
+    newBtn.addEventListener("click", () => showView("new"));
+    document.getElementById("back-btn").addEventListener("click", () => showView("list"));
+
+    document.getElementById("new-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const alertEl = document.getElementById("new-alert");
+      alertEl.classList.add("hidden");
+
+      const result = await createAnnouncement({
+        title: document.getElementById("ann-title").value,
+        category: categorySelect.value,
+        priority: document.getElementById("ann-priority").value,
+        description: document.getElementById("ann-description").value,
+      });
+
+      if (!result.success) {
+        alertEl.textContent = result.error;
+        alertEl.classList.remove("hidden");
+        return;
+      }
+
+      document.getElementById("new-form").reset();
+      showView("list");
+      await renderList();
+    });
+
+    async function init() {
+      const phone = await getAuthenticatedPhone();
+      if (!phone) {
+        window.location.replace("index.html");
+        return;
+      }
+
+      newBtn.classList.toggle("hidden", !(await isLeadership()));
+      await renderList();
+    }
+
+    init();
+  </script>
+</body>
+</html>
