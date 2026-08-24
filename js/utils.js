@@ -58,3 +58,23 @@ export function formatDateBR(date) {
 export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/**
+ * Indica se a pessoa é menor de 18 anos a partir da data de nascimento.
+ * Mesma regra usada na constraint `guardian_contact_required_for_minors`
+ * do banco (supabase/migrations/0001_init_auth_foundation.sql) — mantenha
+ * as duas em sincronia se a regra de maioridade mudar.
+ *
+ * @param {string|Date} birthDate
+ * @returns {boolean}
+ */
+export function isMinor(birthDate) {
+  const d = birthDate instanceof Date ? birthDate : new Date(birthDate);
+  if (Number.isNaN(d.getTime())) return false;
+
+  const eighteenYearsAgo = new Date();
+  eighteenYearsAgo.setHours(0, 0, 0, 0);
+  eighteenYearsAgo.setFullYear(eighteenYearsAgo.getFullYear() - 18);
+
+  return d.getTime() > eighteenYearsAgo.getTime();
+}
