@@ -1,0 +1,11 @@
+# Segredos e configuração local — nunca versionar
+.env
+.env.local
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/

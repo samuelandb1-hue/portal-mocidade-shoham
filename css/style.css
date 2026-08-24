@@ -1,0 +1,276 @@
+/* ==========================================================================
+   Portal da Mocidade Shoham — estilos globais
+   Mobile first. Sem framework, sem build step.
+   ========================================================================== */
+
+:root {
+  /* Paleta — moderna, jovem, elegante. Poucas cores, uso intencional. */
+  --color-primary: #4338ca;      /* indigo — ação principal */
+  --color-primary-hover: #3730a3;
+  --color-primary-soft: #eef2ff;
+  --color-accent: #f59e0b;       /* âmbar — destaque pontual, usar com moderação */
+
+  --color-bg: #fafafa;
+  --color-surface: #ffffff;
+  --color-border: #e5e7eb;
+
+  --color-text: #111827;
+  --color-text-muted: #6b7280;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fef2f2;
+  --color-success: #16a34a;
+  --color-success-soft: #f0fdf4;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+
+  /* Área de toque mínima recomendada (acessibilidade mobile) */
+  --tap-target: 48px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+button,
+input {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+a {
+  color: var(--color-primary);
+}
+
+/* --------------------------------------------------------------------------
+   Layout utilitário
+   -------------------------------------------------------------------------- */
+
+.page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.container {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* --------------------------------------------------------------------------
+   Componentes base
+   -------------------------------------------------------------------------- */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.field label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.field input {
+  min-height: var(--tap-target);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.field input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.field-hint {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.field-error {
+  font-size: 0.8125rem;
+  color: var(--color-danger);
+  display: none;
+}
+
+.field.has-error input {
+  border-color: var(--color-danger);
+}
+
+.field.has-error .field-error {
+  display: block;
+}
+
+.btn {
+  min-height: var(--tap-target);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-5);
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  transition: background-color 0.15s ease;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--color-primary-hover);
+}
+
+.btn-primary:disabled {
+  background: var(--color-border);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-primary);
+  padding: 0 var(--space-2);
+  min-height: auto;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+/* Estado de carregamento de um botão */
+.btn[data-loading="true"] {
+  position: relative;
+  color: transparent;
+}
+
+.btn[data-loading="true"]::after {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-top-color: #fff;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Alertas / feedback */
+.alert {
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.875rem;
+}
+
+.alert-error {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.alert-success {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.alert-info {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-hover);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+.text-center {
+  text-align: center;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+
+.brand-title {
+  font-size: 1.375rem;
+  font-weight: 700;
+}
+
+.brand-subtitle {
+  font-size: 0.9375rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}

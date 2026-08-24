@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal da Mocidade Shoham — Entrar</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="page">
+    <main class="container">
+      <div class="brand">
+        <h1 class="brand-title">Mocidade Shoham</h1>
+        <p class="brand-subtitle">Entre com seu WhatsApp para acessar o portal</p>
+      </div>
+
+      <div class="card stack">
+        <!-- Aviso de ambiente: some sozinho assim que o Supabase estiver configurado -->
+        <div id="mock-warning" class="alert alert-info hidden">
+          Ambiente de teste: o envio do código está simulado (sem Twilio/WhatsApp
+          real ainda). O código aparece no console do navegador.
+        </div>
+
+        <!-- Passo 1: telefone -->
+        <form id="phone-step" class="stack">
+          <div class="field" id="phone-field">
+            <label for="phone">Número do WhatsApp</label>
+            <input
+              type="tel"
+              id="phone"
+              name="phone"
+              inputmode="tel"
+              autocomplete="tel"
+              placeholder="(11) 91234-5678"
+              required
+            />
+            <span class="field-hint">Vamos enviar um código de confirmação por WhatsApp.</span>
+            <span class="field-error" id="phone-error"></span>
+          </div>
+
+          <div id="phone-alert" class="alert alert-error hidden"></div>
+
+          <button type="submit" class="btn btn-primary btn-block" id="send-code-btn">
+            Enviar código
+          </button>
+        </form>
+
+        <!-- Passo 2: código OTP (escondido até o telefone ser enviado) -->
+        <form id="otp-step" class="stack hidden">
+          <p class="text-muted">
+            Código enviado para <strong id="otp-phone-display"></strong>.
+          </p>
+
+          <div class="field" id="otp-field">
+            <label for="otp">Código de 6 dígitos</label>
+            <input
+              type="text"
+              id="otp"
+              name="otp"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              maxlength="6"
+              placeholder="000000"
+              required
+            />
+            <span class="field-error" id="otp-error"></span>
+          </div>
+
+          <div id="otp-alert" class="alert alert-error hidden"></div>
+
+          <button type="submit" class="btn btn-primary btn-block" id="verify-code-btn">
+            Confirmar código
+          </button>
+
+          <button type="button" class="btn btn-ghost" id="change-phone-btn">
+            Usar outro número
+          </button>
+        </form>
+      </div>
+
+      <p class="text-muted text-center" style="margin-top: 24px; font-size: 0.8125rem;">
+        Ao continuar, você concorda com o uso dos seus dados para participação
+        nas atividades da mocidade.
+      </p>
+    </main>
+  </div>
+
+  <script type="module">
+    import { requestOtp, verifyOtp } from "./js/auth.js";
+    import { isSupabaseConfigured } from "./js/supabase-client.js";
+
+    const phoneStep = document.getElementById("phone-step");
+    const otpStep = document.getElementById("otp-step");
+    const mockWarning = document.getElementById("mock-warning");
+
+    const phoneInput = document.getElementById("phone");
+    const phoneField = document.getElementById("phone-field");
+    const phoneError = document.getElementById("phone-error");
+    const phoneAlert = document.getElementById("phone-alert");
+    const sendCodeBtn = document.getElementById("send-code-btn");
+
+    const otpInput = document.getElementById("otp");
+    const otpField = document.getElementById("otp-field");
+    const otpError = document.getElementById("otp-error");
+    const otpAlert = document.getElementById("otp-alert");
+    const otpPhoneDisplay = document.getElementById("otp-phone-display");
+    const verifyCodeBtn = document.getElementById("verify-code-btn");
+    const changePhoneBtn = document.getElementById("change-phone-btn");
+
+    let currentE164 = null;
+
+    if (!isSupabaseConfigured) {
+      mockWarning.classList.remove("hidden");
+    }
+
+    function setFieldError(fieldEl, errorEl, message) {
+      if (message) {
+        fieldEl.classList.add("has-error");
+        errorEl.textContent = message;
+      } else {
+        fieldEl.classList.remove("has-error");
+        errorEl.textContent = "";
+      }
+    }
+
+    function setAlert(alertEl, message) {
+      if (message) {
+        alertEl.textContent = message;
+        alertEl.classList.remove("hidden");
+      } else {
+        alertEl.classList.add("hidden");
+      }
+    }
+
+    function setLoading(btn, loading) {
+      btn.disabled = loading;
+      btn.dataset.loading = loading ? "true" : "false";
+    }
+
+    phoneStep.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setFieldError(phoneField, phoneError, "");
+      setAlert(phoneAlert, "");
+      setLoading(sendCodeBtn, true);
+
+      const result = await requestOtp(phoneInput.value);
+
+      setLoading(sendCodeBtn, false);
+
+      if (!result.success) {
+        setFieldError(phoneField, phoneError, result.error);
+        return;
+      }
+
+      currentE164 = result.e164;
+      otpPhoneDisplay.textContent = currentE164;
+      phoneStep.classList.add("hidden");
+      otpStep.classList.remove("hidden");
+      otpInput.focus();
+    });
+
+    otpStep.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setFieldError(otpField, otpError, "");
+      setAlert(otpAlert, "");
+      setLoading(verifyCodeBtn, true);
+
+      const result = await verifyOtp(currentE164, otpInput.value.trim());
+
+      setLoading(verifyCodeBtn, false);
+
+      if (!result.success) {
+        setFieldError(otpField, otpError, result.error);
+        return;
+      }
+
+      // TODO: redirecionar para dashboard.html quando o módulo existir.
+      setAlert(otpAlert, null);
+      otpAlert.classList.remove("alert-error");
+      otpAlert.classList.add("alert-success");
+      setAlert(otpAlert, "Login confirmado! (dashboard ainda não implementado)");
+    });
+
+    changePhoneBtn.addEventListener("click", () => {
+      currentE164 = null;
+      otpInput.value = "";
+      setFieldError(otpField, otpError, "");
+      setAlert(otpAlert, "");
+      otpStep.classList.add("hidden");
+      phoneStep.classList.remove("hidden");
+      phoneInput.focus();
+    });
+  </script>
+</body>
+</html>
