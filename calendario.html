@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal da Mocidade Shoham — Calendário</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-5);
+    }
+    .month-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-3);
+    }
+    .month-nav button {
+      background: none;
+      border: none;
+      font-size: 1.25rem;
+      padding: var(--space-2) var(--space-3);
+      cursor: pointer;
+      color: var(--color-primary);
+    }
+    .month-label {
+      font-weight: 700;
+    }
+    .view-toggle {
+      display: flex;
+      gap: var(--space-2);
+      margin-bottom: var(--space-4);
+    }
+    .view-toggle button {
+      flex: 1;
+      min-height: 36px;
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--color-text-muted);
+    }
+    .view-toggle button.active {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: #fff;
+    }
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      margin-bottom: var(--space-4);
+    }
+    .weekday-label {
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--color-text-muted);
+      font-weight: 600;
+    }
+    .day-cell {
+      aspect-ratio: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-sm);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      font-size: 0.875rem;
+      cursor: pointer;
+      position: relative;
+    }
+    .day-cell.other-month {
+      opacity: 0.35;
+      cursor: default;
+    }
+    .day-cell.today {
+      border-color: var(--color-primary);
+      border-width: 2px;
+    }
+    .day-cell.selected {
+      background: var(--color-primary);
+      color: #fff;
+    }
+    .day-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--color-accent);
+      position: absolute;
+      bottom: 6px;
+    }
+    .day-cell.selected .day-dot {
+      background: #fff;
+    }
+    .day-events-list a {
+      display: block;
+      text-decoration: none;
+      color: var(--color-text);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      padding: var(--space-3);
+      margin-top: var(--space-2);
+    }
+    .list-date-header {
+      font-weight: 700;
+      font-size: 0.8125rem;
+      color: var(--color-text-muted);
+      margin: var(--space-4) 0 var(--space-2);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <main class="container" style="max-width: 560px;">
+      <div class="top-nav">
+        <a href="dashboard.html" class="btn-ghost" style="text-decoration: none;">← Início</a>
+        <h1 style="font-size: 1.25rem;">Calendário</h1>
+        <span style="width: 60px;"></span>
+      </div>
+
+      <div class="view-toggle">
+        <button type="button" id="tab-month" class="active">Mês</button>
+        <button type="button" id="tab-list">Lista</button>
+      </div>
+
+      <div id="loading" class="text-center text-muted">Carregando...</div>
+
+      <!-- VISÃO MENSAL -->
+      <section id="month-view" class="hidden">
+        <div class="month-nav">
+          <button type="button" id="prev-month">‹</button>
+          <span class="month-label" id="month-label"></span>
+          <button type="button" id="next-month">›</button>
+        </div>
+        <div class="calendar-grid" id="weekday-labels"></div>
+        <div class="calendar-grid" id="calendar-grid"></div>
+
+        <div id="day-events" class="day-events-list">
+          <p class="text-muted" id="day-events-empty">Toque num dia pra ver os eventos.</p>
+        </div>
+      </section>
+
+      <!-- VISÃO LISTA -->
+      <section id="list-view" class="hidden">
+        <div id="list-empty" class="card text-center hidden">
+          <p>📅</p>
+          <p>Nenhum evento futuro por enquanto.</p>
+        </div>
+        <div id="list-content"></div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module">
+    import { listEvents } from "./js/eventos.js";
+    import { getAuthenticatedPhone } from "./js/cadastro.js";
+
+    const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+    const loading = document.getElementById("loading");
+    const monthView = document.getElementById("month-view");
+    const listView = document.getElementById("list-view");
+    const tabMonth = document.getElementById("tab-month");
+    const tabList = document.getElementById("tab-list");
+
+    let allEvents = [];
+    let cursor = new Date(); // mês sendo exibido
+    let selectedDateKey = null;
+
+    function dateKey(date) {
+      return date.toISOString().slice(0, 10); // yyyy-mm-dd (local seria melhor, mas ok pra agrupar)
+    }
+
+    function capitalizeFirst(str) {
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    function localDateKey(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
+    function switchTab(tab) {
+      tabMonth.classList.toggle("active", tab === "month");
+      tabList.classList.toggle("active", tab === "list");
+      monthView.classList.toggle("hidden", tab !== "month");
+      listView.classList.toggle("hidden", tab !== "list");
+    }
+
+    tabMonth.addEventListener("click", () => switchTab("month"));
+    tabList.addEventListener("click", () => switchTab("list"));
+
+    // --- visão mensal ---
+    const weekdayLabelsEl = document.getElementById("weekday-labels");
+    for (const label of WEEKDAY_LABELS) {
+      const el = document.createElement("div");
+      el.className = "weekday-label";
+      el.textContent = label;
+      weekdayLabelsEl.appendChild(el);
+    }
+
+    const calendarGridEl = document.getElementById("calendar-grid");
+    const monthLabelEl = document.getElementById("month-label");
+
+    function eventsByDay() {
+      const map = {};
+      for (const event of allEvents) {
+        if (event.status !== "ativo") continue;
+        const key = localDateKey(new Date(event.starts_at));
+        (map[key] = map[key] || []).push(event);
+      }
+      return map;
+    }
+
+    function renderMonth() {
+      const year = cursor.getFullYear();
+      const month = cursor.getMonth();
+      monthLabelEl.textContent = capitalizeFirst(
+        cursor.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })
+      );
+
+      const firstOfMonth = new Date(year, month, 1);
+      const startWeekday = firstOfMonth.getDay();
+      const gridStart = new Date(year, month, 1 - startWeekday);
+
+      const byDay = eventsByDay();
+      const todayKey = localDateKey(new Date());
+
+      calendarGridEl.innerHTML = "";
+      for (let i = 0; i < 42; i++) {
+        const day = new Date(gridStart);
+        day.setDate(gridStart.getDate() + i);
+        const key = localDateKey(day);
+        const cell = document.createElement("div");
+        cell.className = "day-cell";
+        if (day.getMonth() !== month) cell.classList.add("other-month");
+        if (key === todayKey) cell.classList.add("today");
+        if (key === selectedDateKey) cell.classList.add("selected");
+        cell.textContent = day.getDate();
+
+        if (byDay[key]?.length) {
+          const dot = document.createElement("span");
+          dot.className = "day-dot";
+          cell.appendChild(dot);
+        }
+
+        if (day.getMonth() === month) {
+          cell.addEventListener("click", () => {
+            selectedDateKey = key;
+            renderMonth();
+            renderDayEvents(key, byDay[key] || []);
+          });
+        }
+
+        calendarGridEl.appendChild(cell);
+      }
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function renderDayEvents(key, events) {
+      const container = document.getElementById("day-events");
+      container.innerHTML = "";
+
+      if (events.length === 0) {
+        const p = document.createElement("p");
+        p.className = "text-muted";
+        const [y, m, d] = key.split("-");
+        p.textContent = `Nenhum evento em ${d}/${m}.`;
+        container.appendChild(p);
+        return;
+      }
+
+      for (const event of events) {
+        const link = document.createElement("a");
+        link.href = `eventos.html?id=${event.id}`;
+        const time = new Date(event.starts_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+        link.innerHTML = `<strong>${escapeHtml(event.title)}</strong><br /><span class="text-muted" style="font-size: 0.8125rem;">${time} · ${escapeHtml(event.category)}</span>`;
+        container.appendChild(link);
+      }
+    }
+
+    document.getElementById("prev-month").addEventListener("click", () => {
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1);
+      renderMonth();
+    });
+    document.getElementById("next-month").addEventListener("click", () => {
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+      renderMonth();
+    });
+
+    // --- visão lista ---
+    function renderListView() {
+      const listContent = document.getElementById("list-content");
+      const listEmpty = document.getElementById("list-empty");
+      listContent.innerHTML = "";
+
+      const now = new Date().toISOString();
+      const upcoming = allEvents
+        .filter((e) => e.status === "ativo" && e.starts_at >= now)
+        .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+
+      if (upcoming.length === 0) {
+        listEmpty.classList.remove("hidden");
+        return;
+      }
+      listEmpty.classList.add("hidden");
+
+      let lastDateHeader = null;
+      for (const event of upcoming) {
+        const d = new Date(event.starts_at);
+        const dateHeader = capitalizeFirst(
+          d.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })
+        );
+        if (dateHeader !== lastDateHeader) {
+          const h = document.createElement("p");
+          h.className = "list-date-header";
+          h.textContent = dateHeader;
+          listContent.appendChild(h);
+          lastDateHeader = dateHeader;
+        }
+
+        const link = document.createElement("a");
+        link.href = `eventos.html?id=${event.id}`;
+        link.style.cssText = "display:block; text-decoration:none; color:var(--color-text); background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:var(--space-3) var(--space-4); margin-bottom:var(--space-2);";
+        const time = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+        link.innerHTML = `<strong>${escapeHtml(event.title)}</strong><br /><span class="text-muted" style="font-size: 0.8125rem;">${time} · ${escapeHtml(event.category)}</span>`;
+        listContent.appendChild(link);
+      }
+    }
+
+    async function init() {
+      const phone = await getAuthenticatedPhone();
+      if (!phone) {
+        window.location.replace("index.html");
+        return;
+      }
+
+      allEvents = await listEvents();
+      loading.classList.add("hidden");
+      renderMonth();
+      renderListView();
+      switchTab("month");
+    }
+
+    init();
+  </script>
+</body>
+</html>

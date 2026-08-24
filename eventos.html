@@ -338,6 +338,12 @@
 
       newEventBtn.classList.toggle("hidden", !(await isLeadership()));
       await renderList();
+
+      // Link direto pra um evento (usado pelo calendário: eventos.html?id=...)
+      const idFromUrl = new URLSearchParams(window.location.search).get("id");
+      if (idFromUrl) {
+        await openDetail(idFromUrl);
+      }
     }
 
     init();
