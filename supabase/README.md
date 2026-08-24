@@ -59,3 +59,14 @@ Supabase — preciso que você confirme por lá.
       **0 linhas** (não um erro) — é assim mesmo, por design (sem
       permissão = sem resultado). O código que chama essa função precisa
       tratar "nenhuma linha" como "sem acesso", não como erro.
+
+## Depois de aplicar a `0004`
+
+- [ ] Um `lider` (não `administrador`) **não consegue** promover ninguém
+      a líder/administrador — só o `administrador` consegue.
+- [ ] Um `lider` continua conseguindo criar eventos, publicar
+      comunicados/estudos e registrar presença normalmente (nada disso
+      foi afetado).
+- [ ] **Você precisa promover manualmente o primeiro `administrador`** via
+      SQL Editor (`UPDATE public.profiles SET role = 'administrador' WHERE id = '...'`)
+      — igual ao primeiro líder, ninguém pode se autopromover.
